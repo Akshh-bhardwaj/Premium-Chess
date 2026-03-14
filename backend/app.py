@@ -1,16 +1,33 @@
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, request, session
 import chess
+import uuid
+import os
 
 app = Flask(__name__)
-# Keep the board state in memory (Note: for single-player global state only; for multi-user we would need sessions)
-board = chess.Board()
+# Generate a simple secret key for sessions
+app.secret_key = os.urandom(24)
+
+# Keep the board state in memory mapped to session IDs
+games = {}
+
+def get_user_board():
+    if 'session_id' not in session:
+        session['session_id'] = str(uuid.uuid4())
+    
+    sid = session['session_id']
+    if sid not in games:
+        games[sid] = chess.Board()
+        
+    return games[sid]
 
 @app.route("/")
 def home():
+    get_user_board() # ensure session is created on load
     return render_template("index.html")
 
 @app.route("/api/board")
-def get_board():
+def get_board_state():
+    board = get_user_board()
     return jsonify({
         "fen": board.fen(),
         "turn": "white" if board.turn == chess.WHITE else "black",
@@ -22,6 +39,7 @@ def get_board():
 
 @app.route("/api/move", methods=["POST"])
 def make_move():
+    board = get_user_board()
     data = request.json
     source = data.get("source")
     target = data.get("target")
@@ -50,8 +68,8 @@ def make_move():
 
 @app.route("/api/reset", methods=["POST"])
 def reset_game():
-    global board
-    board = chess.Board()
+    if 'session_id' in session:
+        games[session['session_id']] = chess.Board()
     return jsonify({"success": True})
 
 if __name__ == "__main__":
