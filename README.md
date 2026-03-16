@@ -1,4 +1,12 @@
-# ♔ Premium Chess
+<div align="center">
+  <img src="https://github.com/Anmol-Baranwal/Cool-GIFs-For-GitHub/assets/74038190/c288471c-be67-4fbb-af44-1c63ee9ed280" />
+</div>
+
+<h1 align="center">♔ Premium Chess</h1>
+
+<div align="center">
+  <img src="https://user-images.githubusercontent.com/74038190/219923809-b86dc415-a0c2-4a38-bc88-ad6cf06395a8.gif" width="350" alt="Tech Stack floating">
+</div>
 
 A sophisticated full-stack chess web application built using Python (Flask) on the backend and HTML/CSS/JS for the responsive frontend. 
 
@@ -45,4 +53,8 @@ The application uses the robust `python-chess` library to strictly enforce move 
 
 ---
 
-**Built with ❤️ by Akshit Sharma**
+<div align="center">
+  <img src="https://forthebadge.com/images/badges/built-with-love.svg" width="130" alt="made with love badge">
+  <br>
+  <strong>Built by Akshit Sharma</strong>
+</div>
