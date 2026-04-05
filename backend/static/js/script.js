@@ -223,16 +223,17 @@ const COMMENTARY = [
 
 let commentaryTimeout = null;
 function showCommentary(move) {
-    if (!commentaryEl) return;
+    const el = document.getElementById('commentary');
+    if (!el) return;
     const line = move
         ? `💬 "${move}" — ${COMMENTARY[Math.floor(Math.random() * COMMENTARY.length)]}`
-        : COMMENTARY[Math.floor(Math.random() * COMMENTARY.length)];
-    commentaryEl.textContent = line;
-    commentaryEl.classList.add('commentary-show');
+        : `♟️ ${COMMENTARY[Math.floor(Math.random() * COMMENTARY.length)]}`;
+    el.textContent = line;
+    el.style.opacity = '1';
     if (commentaryTimeout) clearTimeout(commentaryTimeout);
     commentaryTimeout = setTimeout(() => {
-        commentaryEl.classList.remove('commentary-show');
-    }, 4000);
+        el.style.opacity = '0';
+    }, 5000);
 }
 
 async function recordGame(result) {
