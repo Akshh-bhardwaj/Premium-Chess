@@ -20,6 +20,7 @@ let blackTime = 600;
 let timerInterval = null;
 let currentTurn = 'white';
 let isPaused = false;
+let gameStarted = false;
 
 const pauseBtn = document.getElementById("pause-btn");
 
@@ -261,6 +262,7 @@ function stopTimer() {
 
 function startTimer() {
     if (!clockWhite || !clockBlack) return;
+    if (!gameStarted) return; // Don't run until players register
     
     if (timerInterval) clearInterval(timerInterval);
     
@@ -480,6 +482,43 @@ leaderboardBtn.addEventListener("click", async () => {
 closeLeaderboardBtn.addEventListener("click", () => {
     leaderboardModal.classList.add("hidden");
 });
+
+// ===== Welcome Gate Logic =====
+const welcomeModal = document.getElementById("welcome-modal");
+const startMatchBtn = document.getElementById("start-match-btn");
+const whiteNameInput = document.getElementById("white-name-input");
+const blackNameInput = document.getElementById("black-name-input");
+
+// Allow Enter key to submit
+[whiteNameInput, blackNameInput].forEach(input => {
+    input.addEventListener("keypress", (e) => {
+        if (e.key === 'Enter') startMatchBtn.click();
+    });
+});
+
+startMatchBtn.addEventListener("click", () => {
+    const wName = whiteNameInput.value.trim() || 'Guest_White';
+    const bName = blackNameInput.value.trim() || 'Guest_Black';
+    
+    // Update the player name headers on the board
+    const whiteNameEl = document.querySelector('.white-player .editable-name');
+    const blackNameEl = document.querySelector('.black-player .editable-name');
+    if (whiteNameEl) whiteNameEl.innerText = wName;
+    if (blackNameEl) blackNameEl.innerText = bName;
+    
+    // Fade out and remove the welcome modal
+    welcomeModal.classList.add('fade-out');
+    setTimeout(() => {
+        welcomeModal.style.display = 'none';
+    }, 500);
+    
+    // Unleash the game!
+    gameStarted = true;
+    startTimer();
+});
+
+// Focus first input automatically
+whiteNameInput.focus();
 
 // Initial load
 fetchBoardState();
