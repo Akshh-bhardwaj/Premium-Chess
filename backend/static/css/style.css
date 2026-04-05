@@ -79,6 +79,24 @@ body {
     color: #ff6666;
 }
 
+.topbar-ludo {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: rgba(255,215,0,0.9);
+    text-decoration: none;
+    padding: 5px 14px;
+    border: 1px solid rgba(255,215,0,0.35);
+    border-radius: 6px;
+    transition: all 0.2s;
+    letter-spacing: 0.5px;
+}
+
+.topbar-ludo:hover {
+    background: rgba(255,215,0,0.12);
+    color: #ffd700;
+    box-shadow: 0 0 12px rgba(255,215,0,0.25);
+}
+
 /* ===== Commentary Bar ===== */
 .commentary-bar {
     min-height: 32px;

@@ -158,6 +158,11 @@ def home():
     get_user_game()
     return render_template('index.html', username=current_user.username)
 
+@app.route('/ludo')
+@login_required
+def ludo():
+    return render_template('ludo.html', username=current_user.username)
+
 @app.route('/api/board')
 @login_required
 def get_board():

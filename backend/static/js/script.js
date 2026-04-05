@@ -383,17 +383,16 @@ async function submitMove(source, target) {
         const data = await response.json();
         if (!response.ok) {
             console.log(data.message);
+            // Deselect & refresh on invalid move
+            selectedSquare = null;
+            fetchBoardState();
         } else {
             showCommentary(`${source}→${target}`);
             await fetchBoardState();
             // If bot mode and it's now bot's turn, trigger bot
             if (isBotMode && currentTurn === 'black') {
-                setTimeout(triggerBotMove, 800); // slight thinking delay
+                setTimeout(triggerBotMove, 800);
             }
-        }
-
-        if (!isBotMode || currentTurn !== 'black') {
-            fetchBoardState();
         }
     } catch (err) {
         console.error("Move error:", err);
@@ -419,9 +418,19 @@ async function resetGame() {
         selectedSquare = null;
         whiteTime = 600;
         blackTime = 600;
+        gameStarted = false;
+        isPaused = false;
+        stopTimer();
         updateClocks();
         modal.classList.add('hidden');
-        fetchBoardState();
+        statusElement.textContent = 'Press ▶ Start to begin!';
+        // Re-show the start overlay
+        if (startOverlay) {
+            startOverlay.style.display = 'flex';
+            startOverlay.classList.remove('fade-out');
+            if (opponentInput) opponentInput.focus();
+        }
+        await fetchBoardState();
     } catch (err) {
         console.error("Reset error:", err);
     }
