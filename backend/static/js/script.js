@@ -251,6 +251,10 @@ async function recordGame(result) {
 
 function updateStatus(data) {
     currentTurn = data.turn;
+    if (!gameStarted) {
+        statusElement.textContent = 'Press ▶ Start to begin!';
+        return;
+    }
     let statusText = `${currentTurn === 'white' ? "White" : "Black"}'s Turn`;
     let isGameOver = false;
     
@@ -343,6 +347,7 @@ async function fetchLegalMoves(sqName) {
 }
 
 async function handleSquareClick(sqName) {
+    if (!gameStarted) return;  // Board locked until Start is clicked
     if (isPaused) return;
     
     if (!selectedSquare) {
