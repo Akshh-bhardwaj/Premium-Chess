@@ -123,10 +123,7 @@ function renderBoard(data) {
             if (pieceChar) {
                 const img = document.createElement("img");
                 img.src = pieceMap[pieceChar];
-                img.style.width = "60px";
-                img.style.height = "60px";
-                img.style.pointerEvents = "none"; 
-                img.style.filter = "drop-shadow(4px 10px 8px rgba(0,0,0,0.8)) drop-shadow(0px -1px 2px rgba(255,255,255,0.4))"; 
+                img.classList.add("piece-img");
                 
                 square.appendChild(img);
                 square.classList.add("piece");
