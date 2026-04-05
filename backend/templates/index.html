@@ -144,13 +144,26 @@
             <div class="welcome-crown">♟️</div>
             <h2 class="welcome-title">Ready to Play?</h2>
             <p class="welcome-subtitle">Logged in as <strong style="color:#ffd700;">{{ username }}</strong></p>
-            <p class="welcome-subtitle" style="margin-top:6px;">Enter your opponent's name to begin</p>
-            <div class="name-input-group" style="margin-top:28px;">
+
+            <!-- Mode selector -->
+            <div class="mode-selector">
+                <button class="mode-btn active" id="mode-human" onclick="setMode('human')">👤 vs Human</button>
+                <button class="mode-btn" id="mode-bot" onclick="setMode('bot')">🤖 vs Champ</button>
+            </div>
+
+            <div id="human-opponent-row" class="name-input-group" style="margin-top:20px;">
                 <div class="name-input-wrapper black-side" style="flex:1;">
                     <label>⬛ Opponent (Black)</label>
                     <input type="text" id="opponent-name-input" placeholder="e.g. Rahul" maxlength="20" autocomplete="off">
                 </div>
             </div>
+
+            <div id="bot-info-row" style="display:none; text-align:center; margin-top:20px; padding:14px; background:rgba(255,100,0,0.1); border:1px solid rgba(255,100,0,0.3); border-radius:12px;">
+                <div style="font-size:2rem; margin-bottom:6px;">🤖</div>
+                <div style="font-weight:800; font-size:1.1rem; color:#ff8c00;">Champ</div>
+                <div style="font-size:0.85rem; color:rgba(255,255,255,0.5); margin-top:4px;">Smart bot — hunts your pieces</div>
+            </div>
+
             <button id="start-match-btn" style="margin-top:24px;">▶ Start Match</button>
         </div>
     </div>

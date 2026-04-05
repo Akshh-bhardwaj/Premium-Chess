@@ -935,6 +935,42 @@ button:active {
     transform: translateY(0);
 }
 
+/* Mode selector in start overlay */
+.mode-selector {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+    background: rgba(0,0,0,0.3);
+    border-radius: 12px;
+    padding: 5px;
+}
+
+.mode-btn {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    border-radius: 8px;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+    background: transparent;
+    color: rgba(255,255,255,0.45);
+    transition: all 0.25s;
+    letter-spacing: 0.5px;
+}
+
+.mode-btn.active {
+    background: rgba(255,255,255,0.1);
+    color: white;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+.mode-btn:hover:not(.active) {
+    background: rgba(255,255,255,0.05);
+    color: rgba(255,255,255,0.7);
+}
+
 @media (max-width: 1200px) {
     .layout-container {
         flex-direction: column;

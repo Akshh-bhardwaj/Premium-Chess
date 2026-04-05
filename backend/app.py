@@ -285,5 +285,76 @@ def leaderboard():
     conn.close()
     return jsonify({'leaderboard': [dict(r) for r in rows]})
 
+@app.route('/api/bot_move', methods=['POST'])
+@login_required
+def bot_move():
+    """Smart bot: checkmate → captures (by value) → checks → random."""
+    import random
+    game_state = get_user_game()
+    board      = game_state['board']
+
+    # Piece values for capture scoring
+    PIECE_VALUES = {
+        chess.PAWN: 1, chess.KNIGHT: 3, chess.BISHOP: 3,
+        chess.ROOK: 5, chess.QUEEN: 9, chess.KING: 0
+    }
+
+    legal = list(board.legal_moves)
+    if not legal:
+        return jsonify({'success': False, 'message': 'No legal moves'}), 400
+
+    best_move = None
+
+    # 1. Look for immediate checkmate
+    for move in legal:
+        board.push(move)
+        if board.is_checkmate():
+            board.pop()
+            best_move = move
+            break
+        board.pop()
+
+    # 2. Highest-value capture
+    if not best_move:
+        capture_moves = [(m, PIECE_VALUES.get(
+            board.piece_at(m.to_square).piece_type, 0)
+            if board.piece_at(m.to_square) else 0)
+            for m in legal if board.is_capture(m)]
+        if capture_moves:
+            best_move = max(capture_moves, key=lambda x: x[1])[0]
+
+    # 3. Any move that gives check
+    if not best_move:
+        for move in legal:
+            board.push(move)
+            if board.is_check():
+                board.pop()
+                best_move = move
+                break
+            board.pop()
+
+    # 4. Fallback: random
+    if not best_move:
+        best_move = random.choice(legal)
+
+    san = board.san(best_move)
+    game_state['move_history'].append(san)
+    board.push(best_move)
+
+    cap_white, cap_black = get_captured_pieces(game_state)
+    return jsonify({
+        'success': True,
+        'move':    san,
+        'fen':             board.fen(),
+        'turn':            'white' if board.turn == chess.WHITE else 'black',
+        'is_check':        board.is_check(),
+        'is_checkmate':    board.is_checkmate(),
+        'is_stalemate':    board.is_stalemate(),
+        'is_draw':         board.is_game_over() and not board.is_checkmate(),
+        'move_history':    game_state['move_history'],
+        'captured_by_white': cap_white,
+        'captured_by_black': cap_black,
+    })
+
 if __name__ == '__main__':
     app.run(debug=True)

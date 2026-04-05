@@ -22,6 +22,7 @@ let timerInterval = null;
 let currentTurn = 'white';
 let isPaused = false;
 let gameStarted = false;
+let isBotMode = false;
 
 const pauseBtn = document.getElementById("pause-btn");
 
@@ -383,14 +384,32 @@ async function submitMove(source, target) {
         if (!response.ok) {
             console.log(data.message);
         } else {
-            // Show commentary after successful move
-            const lastMove = `${source}→${target}`;
-            showCommentary(lastMove);
+            showCommentary(`${source}→${target}`);
+            await fetchBoardState();
+            // If bot mode and it's now bot's turn, trigger bot
+            if (isBotMode && currentTurn === 'black') {
+                setTimeout(triggerBotMove, 800); // slight thinking delay
+            }
         }
 
-        fetchBoardState();
+        if (!isBotMode || currentTurn !== 'black') {
+            fetchBoardState();
+        }
     } catch (err) {
         console.error("Move error:", err);
+    }
+}
+
+async function triggerBotMove() {
+    try {
+        const res = await fetch('/api/bot_move', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+            showCommentary(`🤖 Champ plays ${data.move}`);
+            renderBoard(data);
+        }
+    } catch(err) {
+        console.error('Bot move error:', err);
     }
 }
 
@@ -535,8 +554,13 @@ const startSidebarBtn = document.getElementById("start-btn"); // sidebar button
 const opponentInput   = document.getElementById("opponent-name-input");
 
 function launchGame(opponentName) {
-    const bName = opponentName.trim() || 'Guest_Black';
     const wName = window.CURRENT_USER || 'Player 1';
+    let bName;
+    if (isBotMode) {
+        bName = 'Champ 🤖';
+    } else {
+        bName = opponentName.trim() || 'Guest_Black';
+    }
 
     const whiteNameEl = document.querySelector('.white-player .editable-name');
     const blackNameEl = document.querySelector('.black-player .editable-name');
@@ -549,7 +573,7 @@ function launchGame(opponentName) {
     }
     gameStarted = true;
     startTimer();
-    showCommentary(null); // opening commentary
+    showCommentary(null);
 }
 
 if (opponentInput) {
@@ -562,6 +586,15 @@ if (opponentInput) {
 if (startMatchBtn) {
     startMatchBtn.addEventListener('click', () => launchGame(opponentInput ? opponentInput.value : ''));
 }
+
+// Mode toggle
+window.setMode = function(mode) {
+    isBotMode = (mode === 'bot');
+    document.getElementById('mode-human').classList.toggle('active', !isBotMode);
+    document.getElementById('mode-bot').classList.toggle('active', isBotMode);
+    document.getElementById('human-opponent-row').style.display = isBotMode ? 'none' : 'flex';
+    document.getElementById('bot-info-row').style.display = isBotMode ? 'block' : 'none';
+};
 
 // Sidebar "Start Game" button re-opens overlay if game not started, else acts like unpause
 if (startSidebarBtn) {
