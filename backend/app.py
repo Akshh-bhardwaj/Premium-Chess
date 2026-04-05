@@ -2,10 +2,31 @@ from flask import Flask, render_template, jsonify, request, session
 import chess
 import uuid
 import os
+import sqlite3
 
 app = Flask(__name__)
 # Generate a simple secret key for sessions
 app.secret_key = os.urandom(24)
+
+# Database Setup
+DB_FILE = 'chess_stats.db'
+
+def init_db():
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS players (
+            username TEXT PRIMARY KEY,
+            wins INTEGER DEFAULT 0,
+            losses INTEGER DEFAULT 0,
+            draws INTEGER DEFAULT 0
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+# Initialize DB on script load
+init_db()
 
 # Keep the board state in memory mapped to session IDs
 # Structure: games[sid] = {'board': chess.Board(), 'move_history': [], 'devil_mode_active': False}
@@ -172,6 +193,48 @@ def reset_game():
             'devil_mode_active': False
         }
     return jsonify({"success": True})
+
+@app.route("/api/record_game", methods=["POST"])
+def record_game():
+    data = request.json
+    white_player = data.get("white", "Player 1").strip()
+    black_player = data.get("black", "Player 2").strip()
+    result = data.get("result") # "white", "black", or "draw"
+    
+    if not white_player or not black_player or not result:
+        return jsonify({"success": False, "message": "Missing data"}), 400
+
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    
+    # Ensure players exist
+    for player in [white_player, black_player]:
+        c.execute('INSERT OR IGNORE INTO players (username) VALUES (?)', (player,))
+        
+    if result == "white":
+        c.execute('UPDATE players SET wins = wins + 1 WHERE username = ?', (white_player,))
+        c.execute('UPDATE players SET losses = losses + 1 WHERE username = ?', (black_player,))
+    elif result == "black":
+        c.execute('UPDATE players SET wins = wins + 1 WHERE username = ?', (black_player,))
+        c.execute('UPDATE players SET losses = losses + 1 WHERE username = ?', (white_player,))
+    elif result == "draw":
+        c.execute('UPDATE players SET draws = draws + 1 WHERE username = ?', (white_player,))
+        c.execute('UPDATE players SET draws = draws + 1 WHERE username = ?', (black_player,))
+        
+    conn.commit()
+    conn.close()
+    
+    return jsonify({"success": True})
+
+@app.route("/api/leaderboard", methods=["GET"])
+def leaderboard():
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute('SELECT username, wins, losses, draws FROM players ORDER BY wins DESC LIMIT 20')
+    top_players = [{"username": row[0], "wins": row[1], "losses": row[2], "draws": row[3]} for row in c.fetchall()]
+    conn.close()
+    
+    return jsonify({"leaderboard": top_players})
 
 if __name__ == "__main__":
     app.run(debug=True)

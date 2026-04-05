@@ -189,6 +189,25 @@ movesListBlack.addEventListener("click", function() {
     this.classList.toggle("expanded");
 });
 
+function getPlayerNames() {
+    const p1 = document.querySelector('.white-player .editable-name').innerText;
+    const p2 = document.querySelector('.black-player .editable-name').innerText;
+    return { p1, p2 };
+}
+
+async function recordGame(result) {
+    const { p1, p2 } = getPlayerNames();
+    try {
+        await fetch('/api/record_game', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ white: p1, black: p2, result: result })
+        });
+    } catch(e) {
+        console.error("Record score failed", e);
+    }
+}
+
 function updateStatus(data) {
     currentTurn = data.turn;
     let statusText = `${currentTurn === 'white' ? "White" : "Black"}'s Turn`;
@@ -199,14 +218,17 @@ function updateStatus(data) {
         showModal("Checkmate!", `${winner} wins the game.`);
         statusText = "Checkmate!";
         isGameOver = true;
+        recordGame(data.turn === 'white' ? 'black' : 'white');
     } else if (data.is_stalemate) {
         showModal("Stalemate!", "The game is a draw.");
         statusText = "Stalemate!";
         isGameOver = true;
+        recordGame('draw');
     } else if (data.is_draw) {
         showModal("Draw!", "The game ended in a draw.");
         statusText = "Draw!";
         isGameOver = true;
+        recordGame('draw');
     } else if (data.is_check) {
         statusText += " (Check)";
     }
@@ -260,6 +282,7 @@ function startTimer() {
             stopTimer();
             const winner = whiteTime <= 0 ? 'Black' : 'White';
             showModal("Timeout!", `${winner} wins on time.`);
+            recordGame(whiteTime <= 0 ? 'black' : 'white');
         }
     }, 1000);
 }
@@ -418,6 +441,44 @@ hintBtn.addEventListener("click", async () => {
     } catch(err) {
         console.error("Hint error:", err);
     }
+});
+
+const leaderboardModal = document.getElementById("leaderboard-modal");
+const closeLeaderboardBtn = document.getElementById("close-leaderboard-btn");
+const leaderboardBtn = document.getElementById("leaderboard-btn");
+const leaderboardTbody = document.querySelector("#leaderboard-table tbody");
+
+leaderboardBtn.addEventListener("click", async () => {
+    try {
+        const res = await fetch('/api/leaderboard');
+        const data = await res.json();
+        
+        leaderboardTbody.innerHTML = "";
+        data.leaderboard.forEach((player, index) => {
+            const tr = document.createElement("tr");
+            let rankClass = "";
+            if (index === 0) rankClass = "rank-1";
+            else if (index === 1) rankClass = "rank-2";
+            else if (index === 2) rankClass = "rank-3";
+            
+            tr.innerHTML = `
+                <td class="${rankClass}">${index + 1}</td>
+                <td class="${rankClass}">${player.username}</td>
+                <td>${player.wins}</td>
+                <td>${player.losses}</td>
+                <td>${player.draws}</td>
+            `;
+            leaderboardTbody.appendChild(tr);
+        });
+        
+        leaderboardModal.classList.remove("hidden");
+    } catch(err) {
+        console.error("Leaderboard fetch error:", err);
+    }
+});
+
+closeLeaderboardBtn.addEventListener("click", () => {
+    leaderboardModal.classList.add("hidden");
 });
 
 // Initial load

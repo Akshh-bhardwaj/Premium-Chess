@@ -421,6 +421,27 @@ button:active {
     background: linear-gradient(135deg, #ffcc00, #cca300);
 }
 
+.leaderboard-button {
+    padding: 12px 20px;
+    font-size: 1.1rem;
+    font-weight: 800;
+    font-family: 'Inter', sans-serif;
+    color: white;
+    background: linear-gradient(135deg, #2c3e50, #3498db);
+    border: 1px solid #3498db;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 0 15px rgba(52, 152, 219, 0.5);
+    width: 100%;
+}
+
+.leaderboard-button:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 25px rgba(52, 152, 219, 0.8);
+    background: linear-gradient(135deg, #34495e, #2980b9);
+}
+
 /* Real Chat Styles */
 .chat-container {
     height: 160px;
@@ -583,6 +604,68 @@ button:active {
     transform: scale(1.05) translateY(-2px);
     box-shadow: 0 15px 25px rgba(76, 175, 80, 0.5);
 }
+
+/* Leaderboard Specifics */
+#leaderboard-modal.hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    display: flex !important;
+}
+
+#leaderboard-modal {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 200;
+    border-radius: 16px;
+    backdrop-filter: blur(15px);
+    transition: opacity 0.4s ease, visibility 0.4s;
+}
+
+#leaderboard-modal:not(.hidden) .modal-content {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+}
+
+.leaderboard-table-wrapper {
+    max-height: 300px;
+    overflow-y: auto;
+    margin-bottom: 20px;
+    border-radius: 8px;
+    background: rgba(0,0,0,0.4);
+}
+
+#leaderboard-table {
+    width: 100%;
+    border-collapse: collapse;
+    color: white;
+}
+
+#leaderboard-table th, #leaderboard-table td {
+    padding: 12px;
+    text-align: center;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+#leaderboard-table th {
+    background: rgba(255,255,255,0.05);
+    font-weight: 800;
+    color: #ffcc00;
+    position: sticky;
+    top: 0;
+}
+
+#leaderboard-table tbody tr:hover {
+    background: rgba(255,255,255,0.1);
+}
+
+.rank-1 { color: #ffd700; font-weight: 800; text-shadow: 0 0 10px rgba(255,215,0,0.8); }
+.rank-2 { color: #c0c0c0; font-weight: 800; text-shadow: 0 0 10px rgba(192,192,192,0.8); }
+.rank-3 { color: #cd7f32; font-weight: 800; text-shadow: 0 0 10px rgba(205,127,50,0.8); }
 
 @media (max-width: 1200px) {
     .layout-container {
