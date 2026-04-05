@@ -5,16 +5,27 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Premium Chess</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800;900&display=swap" rel="stylesheet">
 </head>
 <body>
+    <!-- Topbar -->
+    <div class="topbar">
+        <span class="topbar-brand">♟️ Premium Chess</span>
+        <div class="topbar-right">
+            <span class="topbar-user">👤 {{ username }}</span>
+            <a href="/logout" class="topbar-logout">Logout</a>
+        </div>
+    </div>
+
     <div class="layout-container">
+        <!-- White Player Panel -->
         <div class="player-panel white-player">
             <div class="player-info">
                 <div class="avatar avatar-white">
-                    <img src="{{ url_for('static', filename='img/player_white.png') }}" alt="Player 1" width="100%" height="100%" style="border-radius: 50%; object-fit: cover;">
+                    <img src="{{ url_for('static', filename='img/player_white.png') }}" alt="Player 1"
+                        width="100%" height="100%" style="border-radius:50%;object-fit:cover;">
                 </div>
-                <h2 contenteditable="true" spellcheck="false" class="editable-name">Player 1</h2>
+                <h2 contenteditable="true" spellcheck="false" class="editable-name">{{ username }}</h2>
                 <span class="player-color">White</span>
                 <div class="chess-clock" id="clock-white">10:00</div>
             </div>
@@ -26,28 +37,34 @@
             <div class="chat-container glassy">
                 <div class="chat-history" id="chat-history-white"></div>
                 <div class="chat-input-wrapper">
-                    <input type="text" id="chat-input-white" placeholder="Type a message..." onkeypress="if(event.key === 'Enter') sendChatMessage('white', 'chat-input-white')">
-                    <button onclick="sendChatMessage('white', 'chat-input-white')">Send</button>
+                    <input type="text" id="chat-input-white" placeholder="Type a message..."
+                        onkeypress="if(event.key==='Enter') sendChatMessage('white','chat-input-white')">
+                    <button onclick="sendChatMessage('white','chat-input-white')">Send</button>
                 </div>
                 <div class="emoji-bar">
-                    <span onclick="insertEmoji('chat-input-white', '😈')">😈</span>
-                    <span onclick="insertEmoji('chat-input-white', '🤯')">🤯</span>
-                    <span onclick="insertEmoji('chat-input-white', '🤡')">🤡</span>
-                    <span onclick="insertEmoji('chat-input-white', '🔥')">🔥</span>
-                    <span onclick="insertEmoji('chat-input-white', '😂')">😂</span>
+                    <span onclick="insertEmoji('chat-input-white','😈')">😈</span>
+                    <span onclick="insertEmoji('chat-input-white','🤯')">🤯</span>
+                    <span onclick="insertEmoji('chat-input-white','🤡')">🤡</span>
+                    <span onclick="insertEmoji('chat-input-white','🔥')">🔥</span>
+                    <span onclick="insertEmoji('chat-input-white','😂')">😂</span>
                 </div>
             </div>
         </div>
 
+        <!-- Board Column -->
         <div class="game-container">
             <header>
-                <div id="status">White's Turn</div>
+                <div id="status">Press ▶ Start to begin!</div>
             </header>
+            <!-- Commentary ticker -->
+            <div id="commentary" class="commentary-bar"></div>
 
             <div class="board-wrapper">
                 <div id="board-container">
                     <div id="board"></div>
                 </div>
+
+                <!-- Game Over Modal -->
                 <div id="game-over-modal" class="hidden">
                     <div class="modal-content">
                         <h2 id="modal-title">Game Over</h2>
@@ -56,6 +73,7 @@
                     </div>
                 </div>
 
+                <!-- Leaderboard Modal -->
                 <div id="leaderboard-modal" class="hidden">
                     <div class="modal-content leaderboard-content">
                         <h2>🏆 Top Players</h2>
@@ -63,28 +81,24 @@
                             <table id="leaderboard-table">
                                 <thead>
                                     <tr>
-                                        <th>Rank</th>
-                                        <th>Player</th>
-                                        <th>W</th>
-                                        <th>L</th>
-                                        <th>D</th>
+                                        <th>Rank</th><th>Player</th><th>W</th><th>L</th><th>D</th>
                                     </tr>
                                 </thead>
-                                <tbody>
-                                    <!-- JS Content -->
-                                </tbody>
+                                <tbody></tbody>
                             </table>
                         </div>
-                        <button id="close-leaderboard-btn" style="margin-top: 20px;">Close</button>
+                        <button id="close-leaderboard-btn" style="margin-top:20px;">Close</button>
                     </div>
                 </div>
             </div>
         </div>
 
+        <!-- Black Player Panel -->
         <div class="player-panel black-player">
             <div class="player-info">
                 <div class="avatar avatar-black">
-                    <img src="{{ url_for('static', filename='img/player_black.png') }}" alt="Player 2" width="100%" height="100%" style="border-radius: 50%; object-fit: cover;">
+                    <img src="{{ url_for('static', filename='img/player_black.png') }}" alt="Player 2"
+                        width="100%" height="100%" style="border-radius:50%;object-fit:cover;">
                 </div>
                 <h2 contenteditable="true" spellcheck="false" class="editable-name">Player 2</h2>
                 <span class="player-color">Black</span>
@@ -98,51 +112,53 @@
             <div class="chat-container glassy">
                 <div class="chat-history" id="chat-history-black"></div>
                 <div class="chat-input-wrapper">
-                    <input type="text" id="chat-input-black" placeholder="Type a message..." onkeypress="if(event.key === 'Enter') sendChatMessage('black', 'chat-input-black')">
-                    <button onclick="sendChatMessage('black', 'chat-input-black')">Send</button>
+                    <input type="text" id="chat-input-black" placeholder="Type a message..."
+                        onkeypress="if(event.key==='Enter') sendChatMessage('black','chat-input-black')">
+                    <button onclick="sendChatMessage('black','chat-input-black')">Send</button>
                 </div>
                 <div class="emoji-bar">
-                    <span onclick="insertEmoji('chat-input-black', '😈')">😈</span>
-                    <span onclick="insertEmoji('chat-input-black', '🤯')">🤯</span>
-                    <span onclick="insertEmoji('chat-input-black', '🤡')">🤡</span>
-                    <span onclick="insertEmoji('chat-input-black', '🔥')">🔥</span>
-                    <span onclick="insertEmoji('chat-input-black', '😂')">😂</span>
+                    <span onclick="insertEmoji('chat-input-black','😈')">😈</span>
+                    <span onclick="insertEmoji('chat-input-black','🤯')">🤯</span>
+                    <span onclick="insertEmoji('chat-input-black','🤡')">🤡</span>
+                    <span onclick="insertEmoji('chat-input-black','🔥')">🔥</span>
+                    <span onclick="insertEmoji('chat-input-black','😂')">😂</span>
                 </div>
             </div>
         </div>
+
+        <!-- Controls Sidebar -->
         <div class="controls-sidebar glassy">
             <h3>Actions</h3>
+            <button id="start-btn" class="start-button">▶ Start Game</button>
             <button id="reset-btn">🔄 Reset Game</button>
             <button id="pause-btn" class="hint-button">⏸ Pause Game</button>
             <button id="hint-btn" class="hint-button">💡 Hint</button>
             <button id="devil-btn" class="devil-button">😈 Devil Mode</button>
-            <button id="leaderboard-btn" class="leaderboard-button" style="margin-top: 10px;">🏆 Leaderboard</button>
+            <button id="leaderboard-btn" class="leaderboard-button" style="margin-top:10px;">🏆 Leaderboard</button>
         </div>
     </div>
 
-    <!-- Welcome / Name Entry Modal -->
-    <div id="welcome-modal">
+    <!-- Start Gate Overlay -->
+    <div id="start-overlay">
         <div class="welcome-content">
             <div class="welcome-crown">♟️</div>
-            <h2 class="welcome-title">Premium Chess</h2>
-            <p class="welcome-subtitle">Enter player names to begin the match</p>
-
-            <div class="name-input-group">
-                <div class="name-input-wrapper white-side">
-                    <label>⬜ White Player</label>
-                    <input type="text" id="white-name-input" placeholder="e.g. Akshit" maxlength="20" autocomplete="off">
-                </div>
-                <div class="vs-divider">VS</div>
-                <div class="name-input-wrapper black-side">
-                    <label>⬛ Black Player</label>
-                    <input type="text" id="black-name-input" placeholder="e.g. Rahul" maxlength="20" autocomplete="off">
+            <h2 class="welcome-title">Ready to Play?</h2>
+            <p class="welcome-subtitle">Logged in as <strong style="color:#ffd700;">{{ username }}</strong></p>
+            <p class="welcome-subtitle" style="margin-top:6px;">Enter your opponent's name to begin</p>
+            <div class="name-input-group" style="margin-top:28px;">
+                <div class="name-input-wrapper black-side" style="flex:1;">
+                    <label>⬛ Opponent (Black)</label>
+                    <input type="text" id="opponent-name-input" placeholder="e.g. Rahul" maxlength="20" autocomplete="off">
                 </div>
             </div>
-
-            <button id="start-match-btn">▶ Start Match</button>
+            <button id="start-match-btn" style="margin-top:24px;">▶ Start Match</button>
         </div>
     </div>
 
+    <script>
+        // Pass logged-in username to JS
+        window.CURRENT_USER = "{{ username }}";
+    </script>
     <script src="{{ url_for('static', filename='js/script.js') }}"></script>
 </body>
 </html>

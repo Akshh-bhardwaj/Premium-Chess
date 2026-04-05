@@ -1,35 +1,65 @@
-from flask import Flask, render_template, jsonify, request, session
+from flask import Flask, render_template, jsonify, request, session, redirect, url_for, flash
+from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 import chess
 import uuid
 import os
 import sqlite3
+import bcrypt
 
 app = Flask(__name__)
-# Generate a simple secret key for sessions
-app.secret_key = os.urandom(24)
+app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-chess-key-change-in-production')
 
-# Database Setup
-DB_FILE = 'chess_stats.db'
+# ─── Flask-Login Setup ────────────────────────────────────────────
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'auth'          # redirect here if not logged in
+login_manager.login_message = ''
+
+# ─── Database Setup ───────────────────────────────────────────────
+DB_FILE = os.path.join(os.path.dirname(__file__), 'chess_stats.db')
+
+def get_db():
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    return conn
 
 def init_db():
-    conn = sqlite3.connect(DB_FILE)
+    conn = get_db()
     c = conn.cursor()
-    c.execute('''
+    c.executescript('''
+        CREATE TABLE IF NOT EXISTS users (
+            id       INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT    UNIQUE NOT NULL,
+            password TEXT    NOT NULL
+        );
         CREATE TABLE IF NOT EXISTS players (
             username TEXT PRIMARY KEY,
-            wins INTEGER DEFAULT 0,
-            losses INTEGER DEFAULT 0,
-            draws INTEGER DEFAULT 0
-        )
+            wins     INTEGER DEFAULT 0,
+            losses   INTEGER DEFAULT 0,
+            draws    INTEGER DEFAULT 0
+        );
     ''')
     conn.commit()
     conn.close()
 
-# Initialize DB on script load
 init_db()
 
-# Keep the board state in memory mapped to session IDs
-# Structure: games[sid] = {'board': chess.Board(), 'move_history': [], 'devil_mode_active': False}
+# ─── User Model (Flask-Login) ─────────────────────────────────────
+class User(UserMixin):
+    def __init__(self, id_, username):
+        self.id       = id_
+        self.username = username
+
+@login_manager.user_loader
+def load_user(user_id):
+    conn = get_db()
+    row  = conn.execute('SELECT id, username FROM users WHERE id = ?', (user_id,)).fetchone()
+    conn.close()
+    if row:
+        return User(row['id'], row['username'])
+    return None
+
+# ─── In-memory game state ─────────────────────────────────────────
 games = {}
 
 INITIAL_WHITE_PIECES = {'P': 8, 'N': 2, 'B': 2, 'R': 2, 'Q': 1, 'K': 1}
@@ -38,15 +68,9 @@ INITIAL_BLACK_PIECES = {'p': 8, 'n': 2, 'b': 2, 'r': 2, 'q': 1, 'k': 1}
 def get_user_game():
     if 'session_id' not in session:
         session['session_id'] = str(uuid.uuid4())
-    
     sid = session['session_id']
     if sid not in games:
-        games[sid] = {
-            'board': chess.Board(),
-            'move_history': [],
-            'devil_mode_active': False
-        }
-        
+        games[sid] = {'board': chess.Board(), 'move_history': [], 'devil_mode_active': False}
     return games[sid]
 
 def get_captured_pieces(game_state):
@@ -57,13 +81,13 @@ def get_captured_pieces(game_state):
         if piece:
             sym = piece.symbol()
             current_counts[sym] = current_counts.get(sym, 0) + 1
-            
+
     captured_by_white = []
     for piece, limit in INITIAL_BLACK_PIECES.items():
         missing = limit - current_counts.get(piece, 0)
         if missing > 0:
             captured_by_white.extend([piece] * missing)
-            
+
     captured_by_black = []
     for piece, limit in INITIAL_WHITE_PIECES.items():
         missing = limit - current_counts.get(piece, 0)
@@ -71,170 +95,195 @@ def get_captured_pieces(game_state):
             captured_by_black.extend([piece] * missing)
 
     if game_state['devil_mode_active']:
-        # Cancel out pawns that were promoted to queens by devil mode
         for cap_list, pawn_sym, queen_sym in [(captured_by_white, 'p', 'q'), (captured_by_black, 'P', 'Q')]:
             extra_queens = current_counts.get(queen_sym, 0) - 1
             while extra_queens > 0 and pawn_sym in cap_list:
                 cap_list.remove(pawn_sym)
                 extra_queens -= 1
-                
+
     return captured_by_white, captured_by_black
 
-@app.route("/")
-def home():
-    get_user_game() # ensure session is created on load
-    return render_template("index.html")
+# ─── Auth Routes ──────────────────────────────────────────────────
+@app.route('/auth', methods=['GET', 'POST'])
+def auth():
+    if current_user.is_authenticated:
+        return redirect(url_for('home'))
 
-@app.route("/api/board")
+    error   = None
+    success = None
+
+    if request.method == 'POST':
+        action   = request.form.get('action')          # 'login' or 'register'
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '').strip()
+
+        if not username or not password:
+            error = 'Username and password are required.'
+        elif action == 'register':
+            conn = get_db()
+            existing = conn.execute('SELECT id FROM users WHERE username = ?', (username,)).fetchone()
+            if existing:
+                error = 'Username already taken. Please choose another.'
+                conn.close()
+            else:
+                hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt())
+                conn.execute('INSERT INTO users (username, password) VALUES (?, ?)', (username, hashed))
+                conn.execute('INSERT OR IGNORE INTO players (username) VALUES (?)', (username,))
+                conn.commit()
+                conn.close()
+                success = 'Account created! You can now log in.'
+        elif action == 'login':
+            conn = get_db()
+            row = conn.execute('SELECT id, username, password FROM users WHERE username = ?', (username,)).fetchone()
+            conn.close()
+            if row and bcrypt.checkpw(password.encode(), row['password']):
+                user = User(row['id'], row['username'])
+                login_user(user, remember=True)
+                return redirect(url_for('home'))
+            else:
+                error = 'Invalid username or password.'
+
+    return render_template('auth.html', error=error, success=success)
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('auth'))
+
+# ─── Game Routes ──────────────────────────────────────────────────
+@app.route('/')
+@login_required
+def home():
+    get_user_game()
+    return render_template('index.html', username=current_user.username)
+
+@app.route('/api/board')
+@login_required
 def get_board():
     game_state = get_user_game()
     board = game_state['board']
     cap_white, cap_black = get_captured_pieces(game_state)
     return jsonify({
-        "fen": board.fen(),
-        "turn": "white" if board.turn == chess.WHITE else "black",
-        "is_check": board.is_check(),
-        "is_checkmate": board.is_checkmate(),
-        "is_stalemate": board.is_stalemate(),
-        "is_draw": board.is_game_over() and not board.is_checkmate(),
-        "move_history": game_state['move_history'],
-        "captured_by_white": cap_white,
-        "captured_by_black": cap_black
+        'fen':              board.fen(),
+        'turn':             'white' if board.turn == chess.WHITE else 'black',
+        'is_check':         board.is_check(),
+        'is_checkmate':     board.is_checkmate(),
+        'is_stalemate':     board.is_stalemate(),
+        'is_draw':          board.is_game_over() and not board.is_checkmate(),
+        'move_history':     game_state['move_history'],
+        'captured_by_white': cap_white,
+        'captured_by_black': cap_black,
     })
 
-@app.route("/api/move", methods=["POST"])
+@app.route('/api/move', methods=['POST'])
+@login_required
 def make_move():
     game_state = get_user_game()
-    board = game_state['board']
-    data = request.json
-    source = data.get("source")
-    target = data.get("target")
-
-    # Assuming source and target are standard algebraic notation, e.g., 'e2', 'e4'
-    move_str = f"{source}{target}"
-    
-    # Check for promotion: if a pawn reaches the last rank, default auto-promote to Queen for simplicity
+    board      = game_state['board']
+    data       = request.json
+    source     = data.get('source')
+    target     = data.get('target')
+    move_str   = f'{source}{target}'
     try:
-        # Move without promotion specifier
         move = chess.Move.from_uci(move_str)
         if move in board.legal_moves:
             game_state['move_history'].append(board.san(move))
             board.push(move)
-            return jsonify({"success": True, "message": "Move successful"})
-        
-        # Check if it was a pawn promotion move
-        move_promo = chess.Move.from_uci(move_str + "q")
+            return jsonify({'success': True})
+        move_promo = chess.Move.from_uci(move_str + 'q')
         if move_promo in board.legal_moves:
             game_state['move_history'].append(board.san(move_promo))
             board.push(move_promo)
-            return jsonify({"success": True, "message": "Promotion successful"})
-            
+            return jsonify({'success': True})
     except ValueError:
         pass
-        
-    return jsonify({"success": False, "message": "Invalid move"}), 400
+    return jsonify({'success': False, 'message': 'Invalid move'}), 400
 
-@app.route("/api/legal_moves")
+@app.route('/api/legal_moves')
+@login_required
 def legal_moves():
     game_state = get_user_game()
-    board = game_state['board']
-    sq_name = request.args.get("sq")
+    board      = game_state['board']
+    sq_name    = request.args.get('sq')
     if not sq_name:
-        return jsonify({"moves": []})
-        
+        return jsonify({'moves': []})
     try:
         sq_index = chess.parse_square(sq_name)
     except ValueError:
-        return jsonify({"moves": []})
+        return jsonify({'moves': []})
+    moves = [chess.square_name(m.to_square) for m in board.legal_moves if m.from_square == sq_index]
+    return jsonify({'moves': moves})
 
-    moves = []
-    for move in board.legal_moves:
-        if move.from_square == sq_index:
-            moves.append(chess.square_name(move.to_square))
-            
-    return jsonify({"moves": moves})
-
-@app.route("/api/hint")
+@app.route('/api/hint')
+@login_required
 def get_hint():
     import random
     game_state = get_user_game()
-    board = game_state['board']
-    moves = list(board.legal_moves)
+    board      = game_state['board']
+    moves      = list(board.legal_moves)
     if not moves:
-        return jsonify({"source": None, "target": None})
-    
-    # Prioritize captures
-    capture_moves = [m for m in moves if board.is_capture(m)]
-    chosen_move = random.choice(capture_moves) if capture_moves else random.choice(moves)
-    
-    return jsonify({
-        "source": chess.square_name(chosen_move.from_square),
-        "target": chess.square_name(chosen_move.to_square)
-    })
+        return jsonify({'source': None, 'target': None})
+    captures   = [m for m in moves if board.is_capture(m)]
+    chosen     = random.choice(captures) if captures else random.choice(moves)
+    return jsonify({'source': chess.square_name(chosen.from_square), 'target': chess.square_name(chosen.to_square)})
 
-@app.route("/api/devil_mode", methods=["POST"])
+@app.route('/api/devil_mode', methods=['POST'])
+@login_required
 def devil_mode():
-    game_state = get_user_game()
-    board = game_state['board']
+    game_state   = get_user_game()
+    board        = game_state['board']
     game_state['devil_mode_active'] = True
     active_color = board.turn
     for sq in chess.SQUARES:
         piece = board.piece_at(sq)
         if piece and piece.piece_type == chess.PAWN and piece.color == active_color:
             board.set_piece_at(sq, chess.Piece(chess.QUEEN, active_color))
-    return jsonify({"success": True})
+    return jsonify({'success': True})
 
-@app.route("/api/reset", methods=["POST"])
+@app.route('/api/reset', methods=['POST'])
+@login_required
 def reset_game():
     if 'session_id' in session:
-        games[session['session_id']] = {
-            'board': chess.Board(),
-            'move_history': [],
-            'devil_mode_active': False
-        }
-    return jsonify({"success": True})
+        games[session['session_id']] = {'board': chess.Board(), 'move_history': [], 'devil_mode_active': False}
+    return jsonify({'success': True})
 
-@app.route("/api/record_game", methods=["POST"])
+@app.route('/api/record_game', methods=['POST'])
+@login_required
 def record_game():
-    data = request.json
-    white_player = data.get("white", "Player 1").strip()
-    black_player = data.get("black", "Player 2").strip()
-    result = data.get("result") # "white", "black", or "draw"
-    
-    if not white_player or not black_player or not result:
-        return jsonify({"success": False, "message": "Missing data"}), 400
+    data         = request.json
+    white_player = data.get('white', 'Guest').strip()
+    black_player = data.get('black', 'Guest').strip()
+    result       = data.get('result')
 
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    
-    # Ensure players exist
+    if not white_player or not black_player or not result:
+        return jsonify({'success': False}), 400
+
+    conn = get_db()
     for player in [white_player, black_player]:
-        c.execute('INSERT OR IGNORE INTO players (username) VALUES (?)', (player,))
-        
-    if result == "white":
-        c.execute('UPDATE players SET wins = wins + 1 WHERE username = ?', (white_player,))
-        c.execute('UPDATE players SET losses = losses + 1 WHERE username = ?', (black_player,))
-    elif result == "black":
-        c.execute('UPDATE players SET wins = wins + 1 WHERE username = ?', (black_player,))
-        c.execute('UPDATE players SET losses = losses + 1 WHERE username = ?', (white_player,))
-    elif result == "draw":
-        c.execute('UPDATE players SET draws = draws + 1 WHERE username = ?', (white_player,))
-        c.execute('UPDATE players SET draws = draws + 1 WHERE username = ?', (black_player,))
-        
+        conn.execute('INSERT OR IGNORE INTO players (username) VALUES (?)', (player,))
+    if result == 'white':
+        conn.execute('UPDATE players SET wins   = wins   + 1 WHERE username = ?', (white_player,))
+        conn.execute('UPDATE players SET losses = losses + 1 WHERE username = ?', (black_player,))
+    elif result == 'black':
+        conn.execute('UPDATE players SET wins   = wins   + 1 WHERE username = ?', (black_player,))
+        conn.execute('UPDATE players SET losses = losses + 1 WHERE username = ?', (white_player,))
+    elif result == 'draw':
+        conn.execute('UPDATE players SET draws = draws + 1 WHERE username = ?', (white_player,))
+        conn.execute('UPDATE players SET draws = draws + 1 WHERE username = ?', (black_player,))
     conn.commit()
     conn.close()
-    
-    return jsonify({"success": True})
+    return jsonify({'success': True})
 
-@app.route("/api/leaderboard", methods=["GET"])
+@app.route('/api/leaderboard')
+@login_required
 def leaderboard():
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute('SELECT username, wins, losses, draws FROM players ORDER BY wins DESC LIMIT 20')
-    top_players = [{"username": row[0], "wins": row[1], "losses": row[2], "draws": row[3]} for row in c.fetchall()]
+    conn = get_db()
+    rows = conn.execute(
+        'SELECT username, wins, losses, draws FROM players ORDER BY wins DESC LIMIT 20'
+    ).fetchall()
     conn.close()
-    
-    return jsonify({"leaderboard": top_players})
+    return jsonify({'leaderboard': [dict(r) for r in rows]})
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     app.run(debug=True)

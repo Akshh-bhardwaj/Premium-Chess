@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Premium Chess — Login</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800;900&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background: radial-gradient(ellipse at top right, #1e1338, #0a0a0c);
+            color: #e0e0e0;
+            font-family: 'Inter', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .auth-card {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.12);
+            backdrop-filter: blur(30px);
+            -webkit-backdrop-filter: blur(30px);
+            border-radius: 28px;
+            padding: 50px 45px;
+            width: 90%;
+            max-width: 440px;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.6);
+            animation: cardIn 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        @keyframes cardIn {
+            from { transform: scale(0.85) translateY(30px); opacity: 0; }
+            to   { transform: scale(1) translateY(0); opacity: 1; }
+        }
+
+        .logo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .logo-icon {
+            font-size: 3rem;
+            display: block;
+            margin-bottom: 10px;
+            filter: drop-shadow(0 0 15px rgba(255,215,0,0.6));
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50%       { transform: translateY(-8px); }
+        }
+
+        .logo h1 {
+            font-size: 2rem;
+            font-weight: 900;
+            background: linear-gradient(135deg, #ffd700, #ff8c00);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: 2px;
+        }
+
+        .logo p {
+            color: rgba(255,255,255,0.4);
+            font-size: 0.9rem;
+            margin-top: 4px;
+        }
+
+        /* Tab switcher */
+        .tab-switcher {
+            display: flex;
+            background: rgba(0,0,0,0.3);
+            border-radius: 12px;
+            padding: 4px;
+            margin-bottom: 28px;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 8px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 700;
+            cursor: pointer;
+            background: transparent;
+            color: rgba(255,255,255,0.4);
+            transition: all 0.25s;
+            letter-spacing: 0.5px;
+        }
+
+        .tab-btn.active {
+            background: rgba(255,255,255,0.1);
+            color: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+
+        /* Forms */
+        .auth-form { display: none; flex-direction: column; gap: 16px; }
+        .auth-form.active { display: flex; }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .form-group label {
+            font-size: 0.8rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+            color: rgba(255,255,255,0.5);
+            text-transform: uppercase;
+        }
+
+        .form-group input {
+            padding: 13px 16px;
+            background: rgba(0,0,0,0.35);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 10px;
+            color: white;
+            font-size: 1rem;
+            font-family: 'Inter', sans-serif;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .form-group input:focus {
+            border-color: rgba(255,215,0,0.6);
+            box-shadow: 0 0 0 3px rgba(255,215,0,0.1);
+        }
+
+        .remember-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.9rem;
+            color: rgba(255,255,255,0.5);
+            cursor: pointer;
+        }
+
+        .remember-row input[type="checkbox"] {
+            accent-color: #4CAF50;
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+
+        .submit-btn {
+            padding: 15px;
+            font-size: 1rem;
+            font-weight: 800;
+            font-family: 'Inter', sans-serif;
+            color: white;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            transition: all 0.3s ease;
+            margin-top: 4px;
+        }
+
+        .login-btn {
+            background: linear-gradient(135deg, #4CAF50, #2E7D32);
+            box-shadow: 0 8px 20px rgba(76,175,80,0.35);
+        }
+
+        .login-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 25px rgba(76,175,80,0.55);
+        }
+
+        .register-btn {
+            background: linear-gradient(135deg, #3a86ff, #1d4ed8);
+            box-shadow: 0 8px 20px rgba(58,134,255,0.35);
+        }
+
+        .register-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 25px rgba(58,134,255,0.55);
+        }
+
+        /* Alerts */
+        .alert {
+            padding: 12px 16px;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+
+        .alert-error {
+            background: rgba(255,60,60,0.15);
+            border: 1px solid rgba(255,60,60,0.4);
+            color: #ff8888;
+        }
+
+        .alert-success {
+            background: rgba(76,175,80,0.15);
+            border: 1px solid rgba(76,175,80,0.4);
+            color: #88dd88;
+        }
+
+        .divider {
+            text-align: center;
+            color: rgba(255,255,255,0.2);
+            font-size: 0.8rem;
+            letter-spacing: 1px;
+            margin: 4px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="auth-card">
+        <div class="logo">
+            <span class="logo-icon">♟️</span>
+            <h1>PREMIUM CHESS</h1>
+            <p>Your moves. Your legacy.</p>
+        </div>
+
+        {% if error %}
+        <div class="alert alert-error" style="margin-bottom: 20px;">{{ error }}</div>
+        {% endif %}
+        {% if success %}
+        <div class="alert alert-success" style="margin-bottom: 20px;">{{ success }}</div>
+        {% endif %}
+
+        <div class="tab-switcher">
+            <button class="tab-btn active" id="tab-login" onclick="switchTab('login')">Login</button>
+            <button class="tab-btn" id="tab-register" onclick="switchTab('register')">Register</button>
+        </div>
+
+        <!-- Login Form -->
+        <form class="auth-form active" id="form-login" method="POST" action="/auth">
+            <input type="hidden" name="action" value="login">
+            <div class="form-group">
+                <label>Username</label>
+                <input type="text" name="username" placeholder="Enter your username" required autocomplete="username">
+            </div>
+            <div class="form-group">
+                <label>Password</label>
+                <input type="password" name="password" placeholder="Enter your password" required autocomplete="current-password">
+            </div>
+            <label class="remember-row">
+                <input type="checkbox" name="remember" checked> Stay logged in
+            </label>
+            <button type="submit" class="submit-btn login-btn">▶ Login</button>
+        </form>
+
+        <!-- Register Form -->
+        <form class="auth-form" id="form-register" method="POST" action="/auth">
+            <input type="hidden" name="action" value="register">
+            <div class="form-group">
+                <label>Choose a Username</label>
+                <input type="text" name="username" placeholder="E.g. Akshit" required autocomplete="username" maxlength="30">
+            </div>
+            <div class="form-group">
+                <label>Password</label>
+                <input type="password" name="password" placeholder="Create a password" required autocomplete="new-password" minlength="4">
+            </div>
+            <button type="submit" class="submit-btn register-btn">✨ Create Account</button>
+            <div class="divider">Your stats will be tracked permanently</div>
+        </form>
+    </div>
+
+    <script>
+        function switchTab(tab) {
+            document.getElementById('form-login').classList.toggle('active', tab === 'login');
+            document.getElementById('form-register').classList.toggle('active', tab === 'register');
+            document.getElementById('tab-login').classList.toggle('active', tab === 'login');
+            document.getElementById('tab-register').classList.toggle('active', tab === 'register');
+        }
+
+        // If there's a success message, auto-switch to login tab
+        {% if success %}
+        switchTab('login');
+        {% endif %}
+    </script>
+</body>
+</html>

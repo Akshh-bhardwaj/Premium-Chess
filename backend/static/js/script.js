@@ -1,18 +1,19 @@
-const boardElement = document.getElementById("board");
-const statusElement = document.getElementById("status");
-const resetBtn = document.getElementById("reset-btn");
-const modal = document.getElementById("game-over-modal");
-const modalTitle = document.getElementById("modal-title");
-const modalMessage = document.getElementById("modal-message");
-const modalBtn = document.getElementById("modal-btn");
-const movesListWhite = document.getElementById("moves-list-white");
-const movesListBlack = document.getElementById("moves-list-black");
+const boardElement    = document.getElementById("board");
+const statusElement   = document.getElementById("status");
+const resetBtn        = document.getElementById("reset-btn");
+const modal           = document.getElementById("game-over-modal");
+const modalTitle      = document.getElementById("modal-title");
+const modalMessage    = document.getElementById("modal-message");
+const modalBtn        = document.getElementById("modal-btn");
+const movesListWhite  = document.getElementById("moves-list-white");
+const movesListBlack  = document.getElementById("moves-list-black");
 const capWhiteElement = document.getElementById("cap-white");
 const capBlackElement = document.getElementById("cap-black");
-const devilBtn = document.getElementById("devil-btn");
-const hintBtn = document.getElementById("hint-btn");
-const clockWhite = document.getElementById("clock-white");
-const clockBlack = document.getElementById("clock-black");
+const devilBtn        = document.getElementById("devil-btn");
+const hintBtn         = document.getElementById("hint-btn");
+const clockWhite      = document.getElementById("clock-white");
+const clockBlack      = document.getElementById("clock-black");
+const commentaryEl    = document.getElementById("commentary");
 
 let selectedSquare = null;
 let whiteTime = 600;
@@ -191,9 +192,47 @@ movesListBlack.addEventListener("click", function() {
 });
 
 function getPlayerNames() {
-    const p1 = document.querySelector('.white-player .editable-name').innerText;
+    const p1 = window.CURRENT_USER || document.querySelector('.white-player .editable-name').innerText;
     const p2 = document.querySelector('.black-player .editable-name').innerText;
     return { p1, p2 };
+}
+
+// ── Move Commentary Bank ──────────────────────────────────────────
+const COMMENTARY = [
+    "Ooh, bold move! 👀",
+    "Classic opening theory... or is it? 🤔",
+    "The plot thickens! 🎭",
+    "Now we're cooking! 🔥",
+    "That piece is feeling brave today ♟️",
+    "Grandmaster energy right there 🧠",
+    "Was that really the plan? 😬",
+    "Interesting... very interesting 🧐",
+    "The board is changing fast! ⚡",
+    "Someone's been studying their openings! 📚",
+    "Oh ho ho! Didn't see that coming 😮",
+    "Is this a trap? It smells like a trap 🪤",
+    "Fortune favors the bold ⚔️",
+    "A pawn moves... history changes 🌍",
+    "That's one small step for a rook... 🚀",
+    "Living dangerously! 😅",
+    "The knight does its thing 🐴",
+    "Chaos is a ladder, my friend 🌀",
+    "Pure calculation or pure luck? 🎲",
+    "Now THAT was unexpected! 😲",
+];
+
+let commentaryTimeout = null;
+function showCommentary(move) {
+    if (!commentaryEl) return;
+    const line = move
+        ? `💬 "${move}" — ${COMMENTARY[Math.floor(Math.random() * COMMENTARY.length)]}`
+        : COMMENTARY[Math.floor(Math.random() * COMMENTARY.length)];
+    commentaryEl.textContent = line;
+    commentaryEl.classList.add('commentary-show');
+    if (commentaryTimeout) clearTimeout(commentaryTimeout);
+    commentaryTimeout = setTimeout(() => {
+        commentaryEl.classList.remove('commentary-show');
+    }, 4000);
 }
 
 async function recordGame(result) {
@@ -330,19 +369,19 @@ async function submitMove(source, target) {
     try {
         const response = await fetch('/api/move', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ source, target })
         });
-        
+
+        const data = await response.json();
         if (!response.ok) {
-            const data = await response.json();
-            // Optional: Show invalid move briefly
             console.log(data.message);
+        } else {
+            // Show commentary after successful move
+            const lastMove = `${source}→${target}`;
+            showCommentary(lastMove);
         }
-        
-        // Refresh board regardless (clears selection, updates state)
+
         fetchBoardState();
     } catch (err) {
         console.error("Move error:", err);
@@ -483,42 +522,58 @@ closeLeaderboardBtn.addEventListener("click", () => {
     leaderboardModal.classList.add("hidden");
 });
 
-// ===== Welcome Gate Logic =====
-const welcomeModal = document.getElementById("welcome-modal");
-const startMatchBtn = document.getElementById("start-match-btn");
-const whiteNameInput = document.getElementById("white-name-input");
-const blackNameInput = document.getElementById("black-name-input");
+// ===== Start Overlay Logic =====
+const startOverlay    = document.getElementById("start-overlay");
+const startMatchBtn   = document.getElementById("start-match-btn");
+const startSidebarBtn = document.getElementById("start-btn"); // sidebar button
+const opponentInput   = document.getElementById("opponent-name-input");
 
-// Allow Enter key to submit
-[whiteNameInput, blackNameInput].forEach(input => {
-    input.addEventListener("keypress", (e) => {
-        if (e.key === 'Enter') startMatchBtn.click();
-    });
-});
+function launchGame(opponentName) {
+    const bName = opponentName.trim() || 'Guest_Black';
+    const wName = window.CURRENT_USER || 'Player 1';
 
-startMatchBtn.addEventListener("click", () => {
-    const wName = whiteNameInput.value.trim() || 'Guest_White';
-    const bName = blackNameInput.value.trim() || 'Guest_Black';
-    
-    // Update the player name headers on the board
     const whiteNameEl = document.querySelector('.white-player .editable-name');
     const blackNameEl = document.querySelector('.black-player .editable-name');
     if (whiteNameEl) whiteNameEl.innerText = wName;
     if (blackNameEl) blackNameEl.innerText = bName;
-    
-    // Fade out and remove the welcome modal
-    welcomeModal.classList.add('fade-out');
-    setTimeout(() => {
-        welcomeModal.style.display = 'none';
-    }, 500);
-    
-    // Unleash the game!
+
+    if (startOverlay) {
+        startOverlay.classList.add('fade-out');
+        setTimeout(() => startOverlay.style.display = 'none', 500);
+    }
     gameStarted = true;
     startTimer();
-});
+    showCommentary(null); // opening commentary
+}
 
-// Focus first input automatically
-whiteNameInput.focus();
+if (opponentInput) {
+    opponentInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') startMatchBtn.click();
+    });
+    opponentInput.focus();
+}
+
+if (startMatchBtn) {
+    startMatchBtn.addEventListener('click', () => launchGame(opponentInput ? opponentInput.value : ''));
+}
+
+// Sidebar "Start Game" button re-opens overlay if game not started, else acts like unpause
+if (startSidebarBtn) {
+    startSidebarBtn.addEventListener('click', () => {
+        if (!gameStarted && startOverlay) {
+            startOverlay.style.display = 'flex';
+            startOverlay.classList.remove('fade-out');
+            if (opponentInput) opponentInput.focus();
+        } else {
+            // Already started — works as a quick ▶ Resume if paused
+            if (isPaused) {
+                isPaused = false;
+                document.getElementById('pause-btn').textContent = '⏸ Pause Game';
+                startTimer();
+            }
+        }
+    });
+}
 
 // Initial load
 fetchBoardState();
