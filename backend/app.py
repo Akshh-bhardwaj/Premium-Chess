@@ -151,10 +151,15 @@ def logout():
     logout_user()
     return redirect(url_for('auth'))
 
-# ─── Game Routes ──────────────────────────────────────────────────
+# ─── Game Routes ──────────────────────────────────────────────
 @app.route('/')
 @login_required
 def home():
+    return render_template('home.html', username=current_user.username)
+
+@app.route('/chess')
+@login_required
+def chess_game():
     get_user_game()
     return render_template('index.html', username=current_user.username)
 
