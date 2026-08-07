@@ -23,6 +23,22 @@ let currentTurn = 'white';
 let isPaused = false;
 let gameStarted = false;
 let isBotMode = false;
+let gameOver = false;
+let gameResultRecorded = false;
+let boardGrid = []; // latest FEN grid for click logic
+
+function escapeHtml(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function isWhitePiece(ch) {
+    return ch && ch === ch.toUpperCase();
+}
 
 const pauseBtn = document.getElementById("pause-btn");
 
@@ -127,6 +143,7 @@ function renderBoard(data) {
                 const img = document.createElement("img");
                 img.src = pieceMap[pieceChar];
                 img.classList.add("piece-img");
+                img.alt = pieceChar;
                 
                 square.appendChild(img);
                 square.classList.add("piece");
@@ -134,6 +151,7 @@ function renderBoard(data) {
         }
     }
 
+    boardGrid = grid;
     updateStatus(data);
     updateMoveHistory(data.move_history || []);
     renderCapturedPieces(data.captured_by_white || [], data.captured_by_black || []);
@@ -238,6 +256,8 @@ function showCommentary(move) {
 }
 
 async function recordGame(result) {
+    if (gameResultRecorded) return;
+    gameResultRecorded = true;
     const { p1, p2 } = getPlayerNames();
     try {
         await fetch('/api/record_game', {
@@ -257,23 +277,23 @@ function updateStatus(data) {
         return;
     }
     let statusText = `${currentTurn === 'white' ? "White" : "Black"}'s Turn`;
-    let isGameOver = false;
+    let isGameOverNow = false;
     
     if (data.is_checkmate) {
         const winner = data.turn === 'white' ? 'Black' : 'White';
         showModal("Checkmate!", `${winner} wins the game.`);
         statusText = "Checkmate!";
-        isGameOver = true;
+        isGameOverNow = true;
         recordGame(data.turn === 'white' ? 'black' : 'white');
     } else if (data.is_stalemate) {
         showModal("Stalemate!", "The game is a draw.");
         statusText = "Stalemate!";
-        isGameOver = true;
+        isGameOverNow = true;
         recordGame('draw');
     } else if (data.is_draw) {
         showModal("Draw!", "The game ended in a draw.");
         statusText = "Draw!";
-        isGameOver = true;
+        isGameOverNow = true;
         recordGame('draw');
     } else if (data.is_check) {
         statusText += " (Check)";
@@ -281,14 +301,16 @@ function updateStatus(data) {
 
     statusElement.textContent = statusText;
     
-    if (isGameOver) {
+    if (isGameOverNow) {
+        gameOver = true;
         stopTimer();
-    } else {
+    } else if (!gameOver) {
         startTimer();
     }
 }
 
 function formatTime(sec) {
+    sec = Math.max(0, Math.floor(sec));
     const m = Math.floor(sec / 60);
     const s = sec % 60;
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
@@ -327,6 +349,10 @@ function startTimer() {
         
         if (whiteTime <= 0 || blackTime <= 0) {
             stopTimer();
+            whiteTime = Math.max(0, whiteTime);
+            blackTime = Math.max(0, blackTime);
+            updateClocks();
+            gameOver = true;
             const winner = whiteTime <= 0 ? 'Black' : 'White';
             showModal("Timeout!", `${winner} wins on time.`);
             recordGame(whiteTime <= 0 ? 'black' : 'white');
@@ -347,32 +373,55 @@ async function fetchLegalMoves(sqName) {
     }
 }
 
+function pieceAtSquare(sqName) {
+    if (!boardGrid.length) return null;
+    const files = 'abcdefgh';
+    const col = files.indexOf(sqName[0]);
+    const row = 8 - parseInt(sqName[1], 10);
+    if (row < 0 || row > 7 || col < 0 || col > 7) return null;
+    return boardGrid[row][col];
+}
+
 async function handleSquareClick(sqName) {
-    if (!gameStarted) return;  // Board locked until Start is clicked
-    if (isPaused) return;
-    
+    if (!gameStarted || isPaused || gameOver) return;
+    // In bot mode the human only plays White
+    if (isBotMode && currentTurn !== 'white') return;
+
+    const piece = pieceAtSquare(sqName);
+    const myPiece = piece && (
+        (currentTurn === 'white' && isWhitePiece(piece)) ||
+        (currentTurn === 'black' && !isWhitePiece(piece))
+    );
+
     if (!selectedSquare) {
-        // Select square
+        if (!myPiece) return;
         selectedSquare = sqName;
-        // Re-render to show selection
         await fetchBoardState();
-        fetchLegalMoves(sqName); // Add highlight overlay
-    } else {
-        if (selectedSquare === sqName) {
-            // Deselect
-            selectedSquare = null;
-            fetchBoardState();
-        } else {
-            // Attempt move
-            const source = selectedSquare;
-            const target = sqName;
-            selectedSquare = null;
-            await submitMove(source, target);
-        }
+        fetchLegalMoves(sqName);
+        return;
     }
+
+    if (selectedSquare === sqName) {
+        selectedSquare = null;
+        fetchBoardState();
+        return;
+    }
+
+    // Clicking another own piece reselects it
+    if (myPiece) {
+        selectedSquare = sqName;
+        await fetchBoardState();
+        fetchLegalMoves(sqName);
+        return;
+    }
+
+    const source = selectedSquare;
+    selectedSquare = null;
+    await submitMove(source, sqName);
 }
 
 async function submitMove(source, target) {
+    if (gameOver || isPaused) return;
     try {
         const response = await fetch('/api/move', {
             method: 'POST',
@@ -383,14 +432,12 @@ async function submitMove(source, target) {
         const data = await response.json();
         if (!response.ok) {
             console.log(data.message);
-            // Deselect & refresh on invalid move
             selectedSquare = null;
             fetchBoardState();
         } else {
             showCommentary(`${source}→${target}`);
             await fetchBoardState();
-            // If bot mode and it's now bot's turn, trigger bot
-            if (isBotMode && currentTurn === 'black') {
+            if (isBotMode && !gameOver && currentTurn === 'black') {
                 setTimeout(triggerBotMove, 800);
             }
         }
@@ -420,11 +467,15 @@ async function resetGame() {
         blackTime = 600;
         gameStarted = false;
         isPaused = false;
+        gameOver = false;
+        gameResultRecorded = false;
+        chatMessages.length = 0;
+        renderChat();
         stopTimer();
         updateClocks();
+        if (pauseBtn) pauseBtn.textContent = "⏸ Pause Game";
         modal.classList.add('hidden');
         statusElement.textContent = 'Press ▶ Start to begin!';
-        // Re-show the start overlay
         if (startOverlay) {
             startOverlay.style.display = 'flex';
             startOverlay.classList.remove('fade-out');
@@ -474,12 +525,12 @@ function renderChat() {
         
         const div1 = document.createElement("div");
         div1.className = "chat-message";
-        div1.innerHTML = `<strong>${title}:</strong> ${msg.text}`;
+        div1.innerHTML = `<strong>${title}:</strong> ${escapeHtml(msg.text)}`;
         hw.appendChild(div1);
         
         const div2 = document.createElement("div");
         div2.className = "chat-message";
-        div2.innerHTML = `<strong>${title}:</strong> ${msg.text}`;
+        div2.innerHTML = `<strong>${title}:</strong> ${escapeHtml(msg.text)}`;
         hb.appendChild(div2);
     });
     
@@ -490,6 +541,8 @@ function renderChat() {
 resetBtn.addEventListener("click", resetGame);
 modalBtn.addEventListener("click", resetGame);
 devilBtn.addEventListener("click", async () => {
+    if (!gameStarted || isPaused || gameOver) return;
+    if (!confirm('Turn all your pawns into queens? (Devil Mode)')) return;
     try {
         await fetch('/api/devil_mode', { method: 'POST' });
         fetchBoardState();
@@ -499,19 +552,16 @@ devilBtn.addEventListener("click", async () => {
 });
 
 hintBtn.addEventListener("click", async () => {
+    if (!gameStarted || isPaused || gameOver) return;
+    if (isBotMode && currentTurn !== 'white') return;
     try {
         const res = await fetch('/api/hint');
         const data = await res.json();
         if (data.source && data.target) {
-            // Deselect anything current
             selectedSquare = data.source;
             await fetchBoardState();
-            
-            // Highlight target
             const sq = document.getElementById(`sq-${data.target}`);
             if (sq) sq.classList.add("legal-hint");
-        } else {
-            console.log("No valid hint found!");
         }
     } catch(err) {
         console.error("Hint error:", err);
@@ -538,7 +588,7 @@ leaderboardBtn.addEventListener("click", async () => {
             
             tr.innerHTML = `
                 <td class="${rankClass}">${index + 1}</td>
-                <td class="${rankClass}">${player.username}</td>
+                <td class="${rankClass}">${escapeHtml(player.username)}</td>
                 <td>${player.wins}</td>
                 <td>${player.losses}</td>
                 <td>${player.draws}</td>

@@ -238,9 +238,10 @@
         <!-- Login Form -->
         <form class="auth-form active" id="form-login" method="POST" action="/auth">
             <input type="hidden" name="action" value="login">
+            <input type="hidden" name="next" id="login-next" value="">
             <div class="form-group">
                 <label>Username</label>
-                <input type="text" name="username" placeholder="Enter your username" required autocomplete="username">
+                <input type="text" name="username" placeholder="Enter your username" required autocomplete="username" pattern="[A-Za-z0-9_]{3,30}" title="3–30 letters, numbers, or underscores">
             </div>
             <div class="form-group">
                 <label>Password</label>
@@ -257,7 +258,7 @@
             <input type="hidden" name="action" value="register">
             <div class="form-group">
                 <label>Choose a Username</label>
-                <input type="text" name="username" placeholder="E.g. Akshit" required autocomplete="username" maxlength="30">
+                <input type="text" name="username" placeholder="E.g. Akshit" required autocomplete="username" maxlength="30" minlength="3" pattern="[A-Za-z0-9_]{3,30}" title="3–30 letters, numbers, or underscores">
             </div>
             <div class="form-group">
                 <label>Password</label>
@@ -276,7 +277,11 @@
             document.getElementById('tab-register').classList.toggle('active', tab === 'register');
         }
 
-        // If there's a success message, auto-switch to login tab
+        // Preserve ?next= for post-login redirect
+        const params = new URLSearchParams(window.location.search);
+        const next = params.get('next');
+        if (next) document.getElementById('login-next').value = next;
+
         {% if success %}
         switchTab('login');
         {% endif %}

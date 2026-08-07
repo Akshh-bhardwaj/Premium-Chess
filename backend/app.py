@@ -1,8 +1,10 @@
-from flask import Flask, render_template, jsonify, request, session, redirect, url_for, flash
+from flask import Flask, render_template, jsonify, request, session, redirect, url_for
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+from urllib.parse import urlparse, urljoin
 import chess
 import uuid
 import os
+import re
 import sqlite3
 import bcrypt
 
@@ -12,8 +14,21 @@ app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-chess-key-change-in-pr
 # ─── Flask-Login Setup ────────────────────────────────────────────
 login_manager = LoginManager()
 login_manager.init_app(app)
-login_manager.login_view = 'auth'          # redirect here if not logged in
+login_manager.login_view = 'auth'
 login_manager.login_message = ''
+
+@login_manager.unauthorized_handler
+def unauthorized():
+    if request.path.startswith('/api/'):
+        return jsonify({'success': False, 'message': 'Login required'}), 401
+    return redirect(url_for('auth', next=request.path))
+
+def is_safe_url(target):
+    if not target:
+        return False
+    host_url = urlparse(request.host_url)
+    redirect_url = urlparse(urljoin(request.host_url, target))
+    return redirect_url.scheme in ('http', 'https') and host_url.netloc == redirect_url.netloc
 
 # ─── Database Setup ───────────────────────────────────────────────
 DB_FILE = os.path.join(os.path.dirname(__file__), 'chess_stats.db')
@@ -113,32 +128,42 @@ def auth():
     success = None
 
     if request.method == 'POST':
-        action   = request.form.get('action')          # 'login' or 'register'
+        action   = request.form.get('action')
         username = request.form.get('username', '').strip()
-        password = request.form.get('password', '').strip()
+        password = request.form.get('password', '')  # do not strip passwords
 
         if not username or not password:
             error = 'Username and password are required.'
+        elif len(username) < 3 or len(username) > 30 or not re.match(r'^[A-Za-z0-9_]+$', username):
+            error = 'Username must be 3–30 letters, numbers, or underscores.'
         elif action == 'register':
-            conn = get_db()
-            existing = conn.execute('SELECT id FROM users WHERE username = ?', (username,)).fetchone()
-            if existing:
-                error = 'Username already taken. Please choose another.'
-                conn.close()
+            if len(password) < 4:
+                error = 'Password must be at least 4 characters.'
             else:
-                hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt())
-                conn.execute('INSERT INTO users (username, password) VALUES (?, ?)', (username, hashed))
-                conn.execute('INSERT OR IGNORE INTO players (username) VALUES (?)', (username,))
-                conn.commit()
-                conn.close()
-                success = 'Account created! You can now log in.'
+                conn = get_db()
+                existing = conn.execute('SELECT id FROM users WHERE username = ?', (username,)).fetchone()
+                if existing:
+                    error = 'Username already taken. Please choose another.'
+                    conn.close()
+                else:
+                    hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt())
+                    conn.execute('INSERT INTO users (username, password) VALUES (?, ?)', (username, hashed))
+                    conn.execute('INSERT OR IGNORE INTO players (username) VALUES (?)', (username,))
+                    conn.commit()
+                    conn.close()
+                    success = 'Account created! You can now log in.'
         elif action == 'login':
             conn = get_db()
             row = conn.execute('SELECT id, username, password FROM users WHERE username = ?', (username,)).fetchone()
             conn.close()
             if row and bcrypt.checkpw(password.encode(), row['password']):
                 user = User(row['id'], row['username'])
-                login_user(user, remember=True)
+                remember = bool(request.form.get('remember'))
+                login_user(user, remember=remember)
+                session.pop('session_id', None)  # fresh game board per login
+                nxt = request.args.get('next') or request.form.get('next')
+                if is_safe_url(nxt):
+                    return redirect(nxt)
                 return redirect(url_for('home'))
             else:
                 error = 'Invalid username or password.'
@@ -148,6 +173,9 @@ def auth():
 @app.route('/logout')
 @login_required
 def logout():
+    sid = session.pop('session_id', None)
+    if sid and sid in games:
+        del games[sid]
     logout_user()
     return redirect(url_for('auth'))
 
@@ -191,7 +219,7 @@ def get_board():
 def make_move():
     game_state = get_user_game()
     board      = game_state['board']
-    data       = request.json
+    data       = request.get_json(silent=True) or {}
     source     = data.get('source')
     target     = data.get('target')
     move_str   = f'{source}{target}'
@@ -261,9 +289,9 @@ def reset_game():
 @app.route('/api/record_game', methods=['POST'])
 @login_required
 def record_game():
-    data         = request.json
-    white_player = data.get('white', 'Guest').strip()
-    black_player = data.get('black', 'Guest').strip()
+    data         = request.get_json(silent=True) or {}
+    white_player = (data.get('white') or 'Guest').strip()
+    black_player = (data.get('black') or 'Guest').strip()
     result       = data.get('result')
 
     if not white_player or not black_player or not result:
@@ -324,12 +352,14 @@ def bot_move():
             break
         board.pop()
 
-    # 2. Highest-value capture
+    # 2. Highest-value capture (includes en passant)
     if not best_move:
-        capture_moves = [(m, PIECE_VALUES.get(
-            board.piece_at(m.to_square).piece_type, 0)
-            if board.piece_at(m.to_square) else 0)
-            for m in legal if board.is_capture(m)]
+        def capture_value(m):
+            if board.is_en_passant(m):
+                return PIECE_VALUES[chess.PAWN]
+            piece = board.piece_at(m.to_square)
+            return PIECE_VALUES.get(piece.piece_type, 0) if piece else 0
+        capture_moves = [(m, capture_value(m)) for m in legal if board.is_capture(m)]
         if capture_moves:
             best_move = max(capture_moves, key=lambda x: x[1])[0]
 
