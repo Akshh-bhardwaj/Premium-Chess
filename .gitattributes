@@ -1,0 +1,5 @@
+# Enforce Python as primary language for GitHub linguist
+*.css linguist-detectable=false
+*.html linguist-detectable=false
+*.js linguist-detectable=false
+backend/*.py linguist-detectable=true
